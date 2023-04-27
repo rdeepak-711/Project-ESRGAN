@@ -14,17 +14,63 @@ def main():
     """
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input', type=str, default='inputs', help='Input image or folder')
-    parser.add_argument('-n','--model_name',type=str,default='RealESRGAN_x4plus')
+    parser.add_argument(
+        '-n',
+        '--model_name',
+        type=str,
+        default='RealESRGAN_x4plus',
+        help=('Model names: RealESRGAN_x4plus | RealESRNet_x4plus | RealESRGAN_x4plus_anime_6B | RealESRGAN_x2plus | '
+              'realesr-animevideov3 | realesr-general-x4v3'))
+    parser.add_argument('-o', '--output', type=str, default='results', help='Output folder')
+    parser.add_argument(
+        '-dn',
+        '--denoise_strength',
+        type=float,
+        default=0.5,
+        help=('Denoise strength. 0 for weak denoise (keep noise), 1 for strong denoise ability. '
+              'Only used for the realesr-general-x4v3 model'))
     parser.add_argument('-s', '--outscale', type=float, default=4, help='The final upsampling scale of the image')
+    parser.add_argument(
+        '--model_path', type=str, default=None, help='[Option] Model path. Usually, you do not need to specify it')
+    parser.add_argument('--suffix', type=str, default='out', help='Suffix of the restored image')
+    parser.add_argument('-t', '--tile', type=int, default=0, help='Tile size, 0 for no tile during testing')
+    parser.add_argument('--tile_pad', type=int, default=10, help='Tile padding')
+    parser.add_argument('--pre_pad', type=int, default=0, help='Pre padding size at each border')
     parser.add_argument('--face_enhance', action='store_true', help='Use GFPGAN to enhance face')
+    parser.add_argument(
+        '--fp32', action='store_true', help='Use fp32 precision during inference. Default: fp16 (half precision).')
+    parser.add_argument(
+        '--alpha_upsampler',
+        type=str,
+        default='realesrgan',
+        help='The upsampler for the alpha channels. Options: realesrgan | bicubic')
+    parser.add_argument(
+        '--ext',
+        type=str,
+        default='auto',
+        help='Image extension. Options: auto | jpg | png, auto means using the same extension as inputs')
+    parser.add_argument(
+        '-g', '--gpu-id', type=int, default=None, help='gpu device to use (default=None) can be 0,1,2 for multi-gpu')
+
     args = parser.parse_args()
 
     # determine models according to model names
     args.model_name = args.model_name.split('.')[0]
     model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
     netscale = 4
-    file_url = ['https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth']
-    model_path= "weights\RealESRGAN_x4plus.pth"
+    url='https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth'
+    file_url = [url]
+    # determine model paths
+    if args.model_path is not None:
+        model_path = args.model_path
+    else:
+        model_path = os.path.join('weights', args.model_name + '.pth')
+        if not os.path.isfile(model_path):
+            ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+            for url in file_url:
+                # model_path will be updated
+                model_path = load_file_from_url(
+                    url=url, model_dir=os.path.join(ROOT_DIR, 'weights'), progress=True, file_name=None)
     # restorer
     upsampler = RealESRGANer(
         scale=netscale,
@@ -35,7 +81,7 @@ def main():
         tile_pad=args.tile_pad,
         pre_pad=args.pre_pad,
         half=not args.fp32,
-        gpu_id=args.gpu_id)
+        gpu_id=None)
 
     if args.face_enhance:  # Use GFPGAN for face enhancement
         from gfpgan import GFPGANer
