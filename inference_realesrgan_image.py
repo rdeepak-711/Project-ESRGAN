@@ -29,7 +29,7 @@ def main():
     upsampler = RealESRGANer(
         scale=netscale,
         model_path=model_path,
-        dni_weight=dni_weight,
+        dni_weight=None,
         model=model,
         tile=args.tile,
         tile_pad=args.tile_pad,
